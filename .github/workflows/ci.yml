@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      # `pnpm test` includes the golden-set regression gate, which fails the
+      # build on a routing, retrieval, classification, or grounding regression.
+      - run: pnpm test
+      - run: pnpm build
+
+      # Publish the full evaluation report so metric changes are reviewable in
+      # the PR rather than only visible as a pass or fail.
+      - name: Evaluate against the golden set
+        run: pnpm eval
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-report
+          path: apps/api/eval-results/
+          if-no-files-found: warn
